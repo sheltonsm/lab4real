@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Alabama County Population</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.0/dist/leaflet.css"/>
+    <style>
+        html, body {
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+    
+        .info {
+            padding: 8px 12px;
+            font: 14px/16px Arial, Helvetica, sans-serif;
+            background: rgba(30, 30, 30, 0.85);
+            color: #ffffff;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            border-radius: 5px;
+        }
+        .info h4 {
+            margin: 0 0 5px;
+            color: #ffffff;
+        }
+        .legend {
+            line-height: 18px;
+            color: #ffffff;
+        }
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.85;
+        }
+    </style>
+    <script src="https://unpkg.com/leaflet@1.7.0/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-ajax/2.1.0/leaflet.ajax.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/1.3.4/chroma.min.js"></script>
+</head>
+<body>
+
+    <div id='map'></div>
+
+<script>
+// 1. Initialize Map and Basemap
+var map = L.map('map').setView([32.8, -86.8], 7);
+
+var Stadia_AlidadeSmoothDark = L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {
+    minZoom: 0,
+    maxZoom: 20,
+    attribution: '&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+}).addTo(map);
+
+// 2. Define 7 Class Breaks & Vibrant Magenta/Berry Color Palette
+var grades = [0, 15000, 35000, 75000, 150000, 300000, 500000];
+
+
+var colors = chroma.scale([
+    '#f7aef8', 
+    '#e287d8', 
+    '#cb5fcb', 
+    '#b03cb8', 
+    '#911fa4', 
+    '#700b8c', 
+    '#4c026b'  
+]).colors(grades.length);
+
+
+function getPopulation(props) {
+    if (!props) return 0;
+    for (var key in props) {
+        if (key.trim().toLowerCase() === 'population') {
+            var val = Number(String(props[key]).replace(/,/g, ''));
+            return isNaN(val) ? 0 : val;
+        }
+    }
+    return 0;
+}
+
+
+function getColor(d) {
+    for (var i = grades.length - 1; i >= 0; i--) {
+        if (d >= grades[i]) {
+            return colors[i];
+        }
+    }
+    return colors[0];
+}
+
+// Feature Style Function
+function style(feature) {
+    var pop = getPopulation(feature.properties);
+    return {
+        weight: 1.5,
+        opacity: 1,
+        color: '#ffffff',
+        dashArray: '3',
+        fillOpacity: 0.85,
+        fillColor: getColor(pop)
+    };
+}
+
+
+var info = L.control({ position: 'topright' });
+
+info.onAdd = function (map) {
+    this._div = L.DomUtil.create('div', 'info');
+    this.update();
+    return this._div;
+};
+
+info.update = function (props) {
+    var pop = getPopulation(props);
+    var countyName = props ? (props.NAME || props.name || 'County') : 'Hover over a county';
+
+    this._div.innerHTML = '<h4>Alabama County Population</h4>' + (props ?
+        '<b>' + countyName + '</b><br />' +
+        pop.toLocaleString() + ' residents'
+        : 'Hover over a county');
+};
+
+info.addTo(map);
+
+// 4 Interaction 
+var geojson;
+
+function highlightFeature(e) {
+    var layer = e.target;
+    layer.setStyle({
+        weight: 3,
+        color: '#ffff00',
+        dashArray: '',
+        fillOpacity: 0.95
+    });
+    layer.bringToFront();
+    info.update(layer.feature.properties);
+}
+
+function zoomToFeature(e) {
+    map.fitBounds(e.target.getBounds());
+}
+
+function resetHighlight(e) {
+    geojson.resetStyle(e.target);
+    info.update();
+}
+
+function onEachFeature(feature, layer) {
+    layer.on({
+        mouseover: highlightFeature,
+        click: zoomToFeature,
+        mouseout: resetHighlight
+    });
+}
+
+geojson = L.geoJson.ajax("assets/alabamabutbetter.geojson", {
+    style: style,
+    onEachFeature: onEachFeature
+}).addTo(map);
+
+// 6Legend
+var legend = L.control({ position: 'bottomright' });
+
+legend.onAdd = function (map) {
+    var div = L.DomUtil.create('div', 'info legend');
+    var labels = [];
+
+    for (var i = 0; i < grades.length; i++) {
+        labels.push(
+            '<i style="background:' + colors[i] + '"></i> ' +
+            grades[i].toLocaleString() + (grades[i + 1] ? ' &ndash; ' + grades[i + 1].toLocaleString() : '+')
+        );
+    }
+
+    div.innerHTML = '<b>Population</b><br>' + labels.join('<br>');
+    return div;
+};
+
+legend.addTo(map);
+</script>
+</body>
+</html>
